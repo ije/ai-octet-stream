@@ -353,7 +353,7 @@ describe("createAIStreamServer", () => {
       "end:stop",
     ]);
     expect(doneUsage).toEqual([usage]);
-    expect(usageSpy).toHaveBeenCalledWith(usage, "demo-model");
+    expect(usageSpy).toHaveBeenCalledWith(usage, { model: "demo-model", messages: [] });
   });
 
   it("reuses the last tool name for partial tool call deltas", async () => {

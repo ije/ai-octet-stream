@@ -128,11 +128,8 @@ export function createAIStreamClient<T extends Record<string, unknown> = Record<
 
 /** Create a server for streaming AI completions */
 export function createAIStreamServer<T extends Record<string, unknown> = Record<string, unknown>>(
-  fetchAI: (
-    input: T,
-    signal: AbortSignal,
-  ) => MaybePromise<ReadableStream<Uint8Array<ArrayBufferLike>>>,
-  onUsage?: (usage: CompletionUsage, model?: string) => void,
+  fetchAI: (input: T, signal: AbortSignal) => MaybePromise<ReadableStream<Uint8Array<ArrayBufferLike>>>,
+  onUsage?: (usage: CompletionUsage, input: T) => void,
 ) {
   return {
     async fetch(req: Request) {
@@ -162,7 +159,7 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
               for await (const rawData of readSSEStream(stream)) {
                 if (rawData === "[DONE]") {
                   if (usage) {
-                    onUsage?.(usage, input.model as string | undefined);
+                    onUsage?.(usage, input);
                   }
                   send(STREAM_DONE, { usage });
                   break;
