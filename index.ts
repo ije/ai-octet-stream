@@ -18,16 +18,16 @@ export type ModelPricing = {
   output: number;
 };
 
-/** Data from a Workers AI completion */
-type StreamChunk = {
-  choices?: DeltaChoice[];
+/** A chunk from a ChatCompletion stream */
+type ChatCompletionChunk = {
+  choices?: Choice[];
   usage?: CompletionUsage;
 };
 
-/** A choice from a Workers AI completion */
-type DeltaChoice = {
-  finish_reason: string | null;
-  delta: {
+/** A choice from a ChatCompletion chunk */
+type Choice = {
+  finish_reason?: string | null;
+  delta?: {
     content?: string;
     reasoning_content?: string;
     tool_calls?: ToolOutput[];
@@ -167,29 +167,29 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
                 if (rawData.charCodeAt(0) !== /* { */ 123) {
                   continue;
                 }
-                let data: StreamChunk | null = null;
+                let chunk: ChatCompletionChunk | null = null;
                 try {
-                  data = JSON.parse(rawData);
+                  chunk = JSON.parse(rawData);
                 } catch {
                   // ignore malformed data
                 }
-                if (data) {
-                  if (data.usage) {
-                    usage = data.usage;
+                if (chunk) {
+                  if (chunk.usage) {
+                    usage = chunk.usage;
                   }
-                  const choice = data.choices?.[0];
+                  const choice = chunk.choices?.[0];
                   if (!choice) {
                     continue;
                   }
-                  if (choice.error) {
-                    send(STREAM_ERROR, choice.error.message);
+                  const { error, finish_reason, delta } = choice;
+                  if (error) {
+                    send(STREAM_ERROR, error.message);
                     break;
                   }
-                  if (choice.finish_reason) {
-                    send(STREAM_END, choice.finish_reason);
+                  if (finish_reason) {
+                    send(STREAM_END, finish_reason);
                     continue;
                   }
-                  const delta = choice.delta;
                   if (delta) {
                     const { content, reasoning_content, tool_calls } = delta;
                     if (reasoning_content) {
