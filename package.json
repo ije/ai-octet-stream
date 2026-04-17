@@ -1,6 +1,6 @@
 {
   "name": "ai-octet-stream",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Lightweight SDK for streaming AI responses with a compact binary protocol.",
   "keywords": [
     "ai",
