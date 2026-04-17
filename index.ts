@@ -1,5 +1,5 @@
 import { STREAM_DONE, STREAM_END, STREAM_ERROR, STREAM_REASONING, STREAM_START, STREAM_TEXT, STREAM_TOOLCALL } from "./message-type.ts";
-import { deserialize, isObject, readSSEStream, serialize, stringifyError } from "./utils.ts";
+import { deserialize, readSSEStream, serialize } from "./serialize.ts";
 
 /** Usage information for a completion */
 export type CompletionUsage = {
@@ -12,7 +12,7 @@ export type CompletionUsage = {
 };
 
 /** Pricing for a model in dollars per million tokens */
-export type ModelPricing = {
+type ModelPricing = {
   input: number;
   cachedInput: number;
   output: number;
@@ -127,10 +127,10 @@ export function createAIStreamClient<T extends Record<string, unknown> = Record<
 }
 
 /** Create a server for streaming AI completions */
-export function createAIStreamServer<T extends Record<string, unknown> = Record<string, unknown>>(
-  fetchAI: (input: T, signal: AbortSignal) => MaybePromise<ReadableStream<Uint8Array<ArrayBufferLike>>>,
-  onUsage?: (usage: CompletionUsage, input: T) => void,
-) {
+export function createAIStreamServer<T extends Record<string, unknown> = Record<string, unknown>>(listener: {
+  onFetch: (input: T, signal: AbortSignal) => MaybePromise<ReadableStream<Uint8Array<ArrayBufferLike>>>;
+  onUsage?: (usage: CompletionUsage, input: T) => void;
+}) {
   return {
     async fetch(req: Request) {
       if (req.method !== "POST") {
@@ -143,12 +143,16 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
       let input: T;
       try {
         input = await req.json();
-        if (!isObject(input)) {
-          return new Response("Invalid input", { status: 400 });
+        if (typeof input !== "object" || input === null || Array.isArray(input)) {
+          throw new Error("Invalid input");
         }
-        stream = await fetchAI(input as T, ac.signal);
       } catch (error) {
-        return new Response(stringifyError(error), { status: 500 });
+        return new Response(error.message, { status: 400 });
+      }
+      try {
+        stream = await listener.onFetch(input as T, ac.signal);
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), { status: 500 });
       }
       return new Response(
         new ReadableStream({
@@ -159,7 +163,7 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
               for await (const rawData of readSSEStream(stream)) {
                 if (rawData === "[DONE]") {
                   if (usage) {
-                    onUsage?.(usage, input);
+                    listener.onUsage?.(usage, input);
                   }
                   send(STREAM_DONE, { usage });
                   break;
@@ -213,7 +217,7 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
                 }
               }
             } catch (error) {
-              send(STREAM_ERROR, stringifyError(error));
+              send(STREAM_ERROR, error.message);
             } finally {
               controller.close();
             }

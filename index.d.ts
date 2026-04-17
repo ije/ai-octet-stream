@@ -39,8 +39,13 @@ export type AIStreamServer = {
 
 /** Create a server for streaming AI completions */
 export function createAIStreamServer<T extends Record<string, unknown> = Record<string, unknown>>(
-  fetchAI: (input: T, signal: AbortSignal) => ReadableStream<Uint8Array> | Promise<ReadableStream<Uint8Array>>,
-  onUsage?: (usage: CompletionUsage, input: T) => void,
+  listener: {
+    onFetch: (
+      input: T,
+      signal: AbortSignal,
+    ) => Promise<ReadableStream<Uint8Array<ArrayBufferLike>>> | ReadableStream<Uint8Array<ArrayBufferLike>>;
+    onUsage?: (usage: CompletionUsage, input: T) => void;
+  },
 ): AIStreamServer;
 
 /** Compute the cost of an AI completion */

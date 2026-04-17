@@ -2,16 +2,6 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 const voidMessage = new Uint8Array();
 
-/** Check if a value is an object. */
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Stringify an error. */
-export function stringifyError(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Serialize a message. */
 export function serialize(kind: number, data?: unknown) {
   if (kind < 0 || kind > 31) {

@@ -2,7 +2,7 @@ import type { CompletionUsage } from "./index.ts";
 import { describe, expect, it, mock } from "bun:test";
 import { computeAICompletionCost, createAIStreamClient, createAIStreamServer } from "./index.ts";
 import { STREAM_DONE, STREAM_END, STREAM_ERROR, STREAM_REASONING, STREAM_START, STREAM_TEXT, STREAM_TOOLCALL } from "./message-type.ts";
-import { deserialize, serialize } from "./utils.ts";
+import { deserialize, serialize } from "./serialize.ts";
 
 function streamFromChunks(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -273,8 +273,8 @@ describe("createAIStreamServer", () => {
     };
     const usageSpy = mock(() => {});
 
-    const server = createAIStreamServer(
-      async () =>
+    const server = createAIStreamServer({
+      onFetch: async () =>
         streamFromChunks([
           new TextEncoder().encode(
             [
@@ -303,8 +303,8 @@ describe("createAIStreamServer", () => {
             ].join("\n"),
           ),
         ]),
-      usageSpy,
-    );
+      onUsage: usageSpy,
+    });
 
     const response = server.fetch(
       new Request("https://example.com", {
@@ -357,8 +357,8 @@ describe("createAIStreamServer", () => {
   });
 
   it("reuses the last tool name for partial tool call deltas", async () => {
-    const server = createAIStreamServer(
-      async () =>
+    const server = createAIStreamServer({
+      onFetch: async () =>
         streamFromChunks([
           new TextEncoder().encode(
             [
@@ -372,7 +372,7 @@ describe("createAIStreamServer", () => {
             ].join("\n"),
           ),
         ]),
-    );
+    });
 
     const response = server.fetch(
       new Request("https://example.com", {
@@ -404,8 +404,8 @@ describe("createAIStreamServer", () => {
       prompt_tokens: 10,
       completion_tokens: 5,
     };
-    const server = createAIStreamServer(
-      async () =>
+    const server = createAIStreamServer({
+      onFetch: async () =>
         streamFromChunks([
           new TextEncoder().encode(
             [
@@ -415,7 +415,7 @@ describe("createAIStreamServer", () => {
             ].join("\n"),
           ),
         ]),
-    );
+    });
 
     const response = server.fetch(
       new Request("https://example.com", {

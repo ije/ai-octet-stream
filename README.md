@@ -16,18 +16,23 @@ Lightweight SDK for streaming AI responses with a compact binary protocol.
 
 ### Using OpenAI SDK
 
-Use the official SDK, then call `.asResponse()` to get the raw SSE response body that `createAIStreamServer()` expects.
+Use the official OpenAI SDK, then call `.asResponse()` to get the raw SSE response body expected by `createAIStreamServer()`.
 
 ```ts
 import OpenAI from "openai";
 import { createAIStreamServer } from "ai-octet-stream";
 
+type ChatInput = {
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+};
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const server = createAIStreamServer(
-  async (input: Record<string, unknown>, signal) => {
+const server = createAIStreamServer<ChatInput>({
+  async onFetch(input, signal) {
     const response = await openai.chat.completions
       .create(
         {
@@ -38,17 +43,12 @@ const server = createAIStreamServer(
         { signal },
       )
       .asResponse();
-
-    if (!response.body) {
-      throw new Error("Missing response body");
-    }
-
     return response.body;
   },
-  (usage, model) => {
-    console.log("usage", model, usage);
+  onUsage(usage, input) {
+    console.log("usage", input.model, usage);
   },
-);
+});
 
 // POST /api/ai
 export async function POST(req: Request) {
@@ -58,22 +58,19 @@ export async function POST(req: Request) {
 
 ### Using Cloudflare Worker AI Binding
 
-If you are running inside a Worker, use the Workers AI binding directly instead of making an extra HTTP request.
+If you're running in a Cloudflare Worker, call the Workers AI binding directly.
 
 ```ts
 import { env } from "cloudflare:workers";
 import { createAIStreamServer } from "ai-octet-stream";
 
-type ChatInput = {
-  model: string;
-  messages: Array<{ role: string; content: string }>;
-};
-
-const server = createAIStreamServer<ChatInput>(async ({ model, ...input }, _signal) => {
-  return env.AI.run(model, {
-    ...input,
-    stream: true,
-  });
+const server = createAIStreamServer<ChatInput>({
+  onFetch({ model, ...input }, signal) {
+    return env.AI.run(model, { ...input, stream: true }, { signal });
+  },
+  onUsage(usage, input) {
+    console.log("usage", input.model, usage);
+  },
 });
 
 export default {
@@ -94,8 +91,8 @@ If your provider already exposes an OpenAI-compatible chat completions endpoint,
 ```ts
 import { createAIStreamServer } from "ai-octet-stream";
 
-const server = createAIStreamServer(
-  async (input: Record<string, unknown>, signal) => {
+const server = createAIStreamServer<ChatInput>({
+  async onFetch(input: Record<string, unknown>, signal) {
     const response = await fetch(process.env.OPENAI_BASE_URL + "/v1/chat/completions", {
       method: "POST",
       signal,
@@ -110,16 +107,17 @@ const server = createAIStreamServer(
       }),
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error(await response.text());
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to fetch AI: ${error}`);
     }
 
     return response.body;
   },
-  (usage, model) => {
-    console.log("usage", model, usage);
+  onUsage(usage, input) {
+    console.log("usage", input.model, usage);
   },
-);
+});
 
 // POST /api/ai
 export async function POST(req: Request) {
@@ -134,12 +132,12 @@ Once your server route is in place, consume the binary stream from browsers, Wor
 ```ts
 import { createAIStreamClient } from "ai-octet-stream";
 
-const client = createAIStreamClient({
+const client = createAIStreamClient<ChatInput>({
   onStreamError(error) {
     console.error("stream error:", error);
   },
   onStreamStart() {
-   console.log("stream started");
+    console.log("stream started");
   },
   onStreamReasoning(reasoning_delta) {
     console.log("reasoning delta:", reasoning_delta);
@@ -170,20 +168,84 @@ await client.fetch(
 );
 ```
 
+### Stream Rendering
+
+The following example shows how to use `createAIStreamClient` to read the binary stream and render it in a React component.
+
+```tsx
+import { useLayoutEffect, useState } from "react";
+import { createAIStreamClient } from "ai-octet-stream";
+
+function ChatBot() {
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [reasoning, setReasoning] = useState("");
+  const [text, setText] = useState("");
+  const [finishReason, setFinishReason] = useState("");
+
+  useLayoutEffect(() => {
+    const ac = new AbortController();
+    const client = createAIStreamClient<ChatInput>({
+      onStreamStart() {
+        setIsStreaming(true);
+      },
+      onStreamReasoning(reasoning_delta) {
+        setReasoning((prev) => prev + reasoning_delta);
+      },
+      onStreamText(text_delta) {
+        setText((prev) => prev + text_delta);
+      },
+      onStreamEnd(finish_reason) {
+        setIsStreaming(false);
+        setFinishReason(finish_reason)
+      },
+    });
+
+    client.fetch(
+      "/api/ai",
+      {
+        model: "gpt-5.4",
+        messages: [
+          { role: "system", content: "You are an AI assistant." },
+          { role: "user", content: "Write a haiku." },
+        ],
+      },
+      { signal: ac.signal }
+    );
+
+    return () => ac.abort();
+  }, [])
+
+  return (
+    <div>
+      <h1>Chat Bot</h1>
+      <p>
+        Status: {isStreaming ? "Streaming" : finishReason ? finishReason : "Pending"}
+      </p>
+      <p>
+        🧠 <pre>{reasoning}</pre>
+      </p>
+      <p>
+        💬 <pre>{text}</pre>
+      </p>
+    </div>
+  );
+}
+```
+
 ## Pricing
 
 This package provides a `computeAICompletionCost(pricing, usage)` function to compute the cost of an AI completion.
 
-In `createAIStreamServer`'s second callback, assign the return value to `usage.cost`. That hook runs immediately before the final `STREAM_DONE` frame, so the client can read `usage.cost` in `onStreamDone`.
+In `createAIStreamServer`'s `onUsage` callback, assign the return value to `usage.cost`. That hook runs immediately before the final `STREAM_DONE` frame, so the client can read `usage.cost` in `onStreamDone`.
 
 ```ts
 import { createAIStreamClient, createAIStreamServer, computeAICompletionCost } from "ai-octet-stream";
 
-const server = createAIStreamServer(
-  async (input, signal) => {
+const server = createAIStreamServer({
+  async onFetch(input, signal) {
     // fetch from the AI provider
   },
-  (usage, input) => {
+  onUsage(usage, input) {
     usage.cost = computeAICompletionCost(
       {
         input: 0.15,
@@ -195,7 +257,7 @@ const server = createAIStreamServer(
     // update user ai credits balance
     console.log("model", input.model, "cost", usage.cost);
   },
-);
+});
 
 const client = createAIStreamClient({
   onStreamDone(usage) {
