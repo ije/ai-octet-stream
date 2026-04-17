@@ -3,9 +3,8 @@
 Lightweight SDK for streaming AI responses with a compact binary protocol.
 
 - Tiny: 2 KB gzipped
-- Minimal API: 3 functions
 - Fast transport over a compact binary stream
-- Up to 95% smaller payloads than SSE JSON for token-by-token streaming
+- **Up to 95% smaller payloads** than SSE JSON for token-by-token streaming
 - Works with any provider that exposes an OpenAI-style chat completion stream; Anthropic-style support is coming soon
 - Track completion cost on the server side
 - Built on standard Web APIs for browsers, Workers, Bun, and Node
