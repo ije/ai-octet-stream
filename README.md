@@ -183,7 +183,7 @@ const server = createAIStreamServer(
   async (input, signal) => {
     // fetch from the AI provider
   },
-  (usage, model) => {
+  (usage, input) => {
     usage.cost = computeAICompletionCost(
       {
         input: 0.15,
@@ -193,7 +193,7 @@ const server = createAIStreamServer(
       usage,
     );
     // update user ai credits balance
-    console.log("model", model, "cost", usage.cost);
+    console.log("model", input.model, "cost", usage.cost);
   },
 );
 
