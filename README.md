@@ -84,7 +84,7 @@ export default {
 };
 ```
 
-### Using OpenAI-compatible server endpoint
+### Using OpenAI-compatible API
 
 If your provider already exposes an OpenAI-compatible chat completions endpoint, proxy it with `fetch()` and return the response body.
 
@@ -232,7 +232,7 @@ function ChatBot() {
 }
 ```
 
-## Pricing
+## Cost Calculation
 
 This package provides a `computeAICompletionCost(pricing, usage)` function to compute the cost of an AI completion.
 
