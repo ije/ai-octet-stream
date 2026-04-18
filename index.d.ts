@@ -33,7 +33,7 @@ export function createAIStreamClient<T extends Record<string, unknown> = Record<
 }): AIStreamClient<T>;
 
 /** A server for streaming AI completions */
-export type AIStreamServer = {
+export type AIStreamServer<T extends Record<string, unknown> = Record<string, unknown>> = {
   fetch(req: Request): Promise<Response>;
 };
 
@@ -46,7 +46,7 @@ export function createAIStreamServer<T extends Record<string, unknown> = Record<
     ) => Promise<ReadableStream<Uint8Array<ArrayBufferLike>>> | ReadableStream<Uint8Array<ArrayBufferLike>>;
     onUsage?: (usage: CompletionUsage, input: T) => void;
   },
-): AIStreamServer;
+): AIStreamServer<T>;
 
 /** Compute the cost of an AI completion */
 export function computeAICompletionCost(pricing: ModelPricing, usage: CompletionUsage): number;
