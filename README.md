@@ -31,7 +31,7 @@ const openai = new OpenAI({
 });
 
 const server = createAIStreamServer<ChatInput>({
-  async onFetch(input, signal) {
+  onFetch: async (input, signal) => {
     const response = await openai.chat.completions
       .create(
         {
@@ -44,7 +44,7 @@ const server = createAIStreamServer<ChatInput>({
       .asResponse();
     return response.body;
   },
-  onUsage(usage, input) {
+  onUsage: (usage, input) => {
     console.log("usage", input.model, usage);
   },
 });
@@ -64,10 +64,10 @@ import { env } from "cloudflare:workers";
 import { createAIStreamServer } from "ai-octet-stream";
 
 const server = createAIStreamServer<ChatInput>({
-  onFetch({ model, ...input }, signal) {
+  onFetch: ({ model, ...input }, signal) => {
     return env.AI.run(model, { ...input, stream: true }, { signal });
   },
-  onUsage(usage, input) {
+  onUsage: (usage, input) => {
     console.log("usage", input.model, usage);
   },
 });
@@ -91,7 +91,7 @@ If your provider already exposes an OpenAI-compatible chat completions endpoint,
 import { createAIStreamServer } from "ai-octet-stream";
 
 const server = createAIStreamServer<ChatInput>({
-  async onFetch(input: Record<string, unknown>, signal) {
+  onFetch: async (input: Record<string, unknown>, signal) => {
     const response = await fetch(process.env.OPENAI_BASE_URL + "/v1/chat/completions", {
       method: "POST",
       signal,
@@ -113,7 +113,7 @@ const server = createAIStreamServer<ChatInput>({
 
     return response.body;
   },
-  onUsage(usage, input) {
+  onUsage: (usage, input) => {
     console.log("usage", input.model, usage);
   },
 });
@@ -132,25 +132,25 @@ Once your server route is in place, consume the binary stream from browsers, Wor
 import { createAIStreamClient } from "ai-octet-stream";
 
 const client = createAIStreamClient<ChatInput>({
-  onStreamError(error) {
+  onStreamError: (error) => {
     console.error("stream error:", error);
   },
-  onStreamStart() {
+  onStreamStart: () => {
     console.log("stream started");
   },
-  onStreamReasoning(reasoning_delta) {
+  onStreamReasoning: (reasoning_delta) => {
     console.log("reasoning delta:", reasoning_delta);
   },
-  onStreamText(text_delta) {
+  onStreamText: (text_delta) => {
     console.log("text delta:", text_delta);
   },
-  onStreamToolCall(name, arguments_delta) {
+  onStreamToolCall: (name, arguments_delta) => {
     console.log("function:", name, "arguments delta:", arguments_delta);
   },
-  onStreamEnd(finish_reason) {
+  onStreamEnd: (finish_reason) => {
     console.log("stream ended:", finish_reason);
   },
-  onStreamDone(usage) {
+  onStreamDone: (usage) => {
     console.log("[done] usage:", usage);
   },
 });
@@ -184,16 +184,16 @@ function ChatBot() {
   useLayoutEffect(() => {
     const ac = new AbortController();
     const client = createAIStreamClient<ChatInput>({
-      onStreamStart() {
+      onStreamStart: () => {
         setIsStreaming(true);
       },
-      onStreamReasoning(reasoning_delta) {
+      onStreamReasoning: (reasoning_delta) => {
         setReasoning((prev) => prev + reasoning_delta);
       },
-      onStreamText(text_delta) {
+      onStreamText: (text_delta) => {
         setText((prev) => prev + text_delta);
       },
-      onStreamEnd(finish_reason) {
+      onStreamEnd: (finish_reason) => {
         setIsStreaming(false);
         setFinishReason(finish_reason)
       },
@@ -240,11 +240,11 @@ In `createAIStreamServer`'s `onUsage` callback, assign the return value to `usag
 ```ts
 import { createAIStreamClient, createAIStreamServer, computeAICompletionCost } from "ai-octet-stream";
 
-const server = createAIStreamServer({
-  async onFetch(input, signal) {
+const server = createAIStreamServer<ChatInput>({
+  onFetch: async (input, signal) => {
     // fetch from the AI provider
   },
-  onUsage(usage, input) {
+  onUsage: (usage, input) => {
     usage.cost = computeAICompletionCost(
       {
         input: 0.15,
@@ -258,8 +258,8 @@ const server = createAIStreamServer({
   },
 });
 
-const client = createAIStreamClient({
-  onStreamDone(usage) {
+const client = createAIStreamClient<ChatInput>({
+  onStreamDone: (usage) => {
     console.log("cost", usage.cost);
   },
 });
